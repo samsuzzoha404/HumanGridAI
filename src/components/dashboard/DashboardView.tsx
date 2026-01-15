@@ -1,3 +1,5 @@
+'use client';
+
 import { EarningsCard } from '@/components/dashboard/EarningsCard';
 import { StatsRow } from '@/components/dashboard/StatsRow';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
@@ -5,6 +7,7 @@ import { UserStats, ActivityItem } from '@/types';
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { memo } from 'react';
 
 interface DashboardViewProps {
   stats: UserStats;
@@ -12,26 +15,26 @@ interface DashboardViewProps {
   onStartWorking: () => void;
 }
 
-export function DashboardView({ stats, activities, onStartWorking }: DashboardViewProps) {
+export const DashboardView = memo(function DashboardView({ stats, activities, onStartWorking }: DashboardViewProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-7 md:space-y-8 px-1">
       {/* Welcome Message */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-2"
+        className="mb-2 sm:mb-3"
       >
-        <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Welcome back! 👋</h1>
-        <p className="text-muted-foreground">Ready to earn some USDC?</p>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground mb-1.5 sm:mb-2 tracking-tight">Welcome back! 👋</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">Ready to earn some USDC?</p>
       </motion.div>
 
       {/* Bento Grid Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-7">
         {/* Earnings Card - Spans 2 columns on larger screens */}
         <div className="md:col-span-2">
           <EarningsCard 
-            totalEarnings={stats.totalEarnings} 
-            weeklyEarnings={stats.weeklyEarnings} 
+            totalEarnings={stats?.totalEarnings || 0} 
+            weeklyEarnings={stats?.weeklyEarnings} 
           />
         </div>
 
@@ -42,20 +45,20 @@ export function DashboardView({ stats, activities, onStartWorking }: DashboardVi
           transition={{ delay: 0.3 }}
           className="md:col-span-2"
         >
-          <div className="bento-item p-6 flex flex-col justify-center h-full">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-foreground mb-1">Ready to work?</h3>
-              <p className="text-sm text-muted-foreground">Jump into the task stream and start earning instantly.</p>
+          <div className="bento-item flex flex-col justify-center h-full">
+            <div className="mb-4 sm:mb-5">
+              <h3 className="text-lg sm:text-xl font-semibold text-foreground mb-1.5 sm:mb-2">Ready to work?</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">Jump into the task stream and start earning instantly.</p>
             </div>
             <Button
               variant="gradient"
               size="xl"
-              className="w-full gap-2 group"
+              className="w-full gap-2 sm:gap-2.5 group shadow-xl hover:shadow-2xl transition-all duration-300"
               onClick={onStartWorking}
             >
-              <Sparkles className="w-5 h-5" />
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
               Start Earning Now
-              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1.5" />
             </Button>
           </div>
         </motion.div>
@@ -63,9 +66,9 @@ export function DashboardView({ stats, activities, onStartWorking }: DashboardVi
         {/* Stats Row - Full width grid */}
         <div className="md:col-span-2 lg:col-span-4">
           <StatsRow 
-            tasksSolvedToday={stats.tasksSolvedToday}
-            accuracyScore={stats.accuracyScore}
-            currentRank={stats.currentRank}
+            tasksSolvedToday={stats?.tasksSolvedToday}
+            accuracyScore={stats?.accuracyScore}
+            currentRank={stats?.currentRank}
           />
         </div>
 
@@ -76,4 +79,4 @@ export function DashboardView({ stats, activities, onStartWorking }: DashboardVi
       </div>
     </div>
   );
-}
+});

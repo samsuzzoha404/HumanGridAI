@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 
 export function Web3Background() {

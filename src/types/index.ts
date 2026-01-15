@@ -1,12 +1,16 @@
+// Supabase database Task interface
 export interface Task {
-  id: string;
-  botName: string;
-  botVersion: string;
-  taskType: 'captcha' | 'sentiment' | 'labeling' | 'verification';
-  description: string;
-  reward: number;
-  timeRemaining: number;
-  difficulty: 'easy' | 'medium' | 'hard';
+  id: number;
+  task_description: string;
+  reward_amount: number;
+  bot_name: string;
+  status: string; // 'pending' | 'completed'
+  created_at: string;
+  // Optional UI-only fields
+  taskType?: 'captcha' | 'sentiment' | 'labeling' | 'verification';
+  botVersion?: string;
+  timeRemaining?: number;
+  difficulty?: 'easy' | 'medium' | 'hard';
   imageUrl?: string;
 }
 

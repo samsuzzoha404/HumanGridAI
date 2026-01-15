@@ -1,17 +1,22 @@
+'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { Task } from '@/types';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { Sparkles, SlidersHorizontal, Zap, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { memo, useMemo } from 'react';
 
 interface TaskStreamProps {
   tasks: Task[];
   onAccept: (task: Task) => void;
-  onSkip: (taskId: string) => void;
+  onSkip: (taskId: string | number) => void;
+  onTimeout?: (taskId: string | number) => void;
 }
 
-export function TaskStream({ tasks, onAccept, onSkip }: TaskStreamProps) {
+export const TaskStream = memo(function TaskStream({ tasks, onAccept, onSkip, onTimeout }: TaskStreamProps) {
+  const taskTypeFilters = useMemo(() => ['All Tasks', 'Captcha', 'Sentiment', 'Labeling', 'Verification'], []);
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -63,7 +68,7 @@ export function TaskStream({ tasks, onAccept, onSkip }: TaskStreamProps) {
         transition={{ delay: 0.1 }}
         className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide"
       >
-        {['All Tasks', 'Captcha', 'Sentiment', 'Labeling', 'Verification'].map((type, i) => (
+        {taskTypeFilters.map((type, i) => (
           <motion.button
             key={type}
             whileHover={{ scale: 1.02 }}
@@ -95,6 +100,7 @@ export function TaskStream({ tasks, onAccept, onSkip }: TaskStreamProps) {
                 task={task}
                 onAccept={onAccept}
                 onSkip={onSkip}
+                onTimeout={onTimeout}
               />
             </motion.div>
           ))}
@@ -148,4 +154,4 @@ export function TaskStream({ tasks, onAccept, onSkip }: TaskStreamProps) {
       )}
     </div>
   );
-}
+});

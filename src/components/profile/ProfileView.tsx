@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { User, Award, BarChart3, Settings, ChevronRight, Shield, Zap, Star, Clock, TrendingUp } from 'lucide-react';
 import { UserStats } from '@/types';

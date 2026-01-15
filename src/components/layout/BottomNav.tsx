@@ -1,3 +1,5 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { Home, Layers, Wallet, User } from 'lucide-react';
 import { cn } from '@/lib/utils';

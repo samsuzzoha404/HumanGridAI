@@ -1,3 +1,5 @@
+'use client';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { X, CheckCircle, Loader2, Send, Sparkles, Bot, Clock, Zap } from 'lucide-react';
@@ -11,7 +13,7 @@ interface WorkModeModalProps {
   task: Task | null;
   isOpen: boolean;
   onClose: () => void;
-  onComplete: (taskId: string, reward: number) => void;
+  onComplete: (taskId: string | number, reward: number) => void;
 }
 
 export function WorkModeModal({ task, isOpen, onClose, onComplete }: WorkModeModalProps) {
@@ -42,7 +44,7 @@ export function WorkModeModal({ task, isOpen, onClose, onComplete }: WorkModeMod
     // Wait for animation then complete
     await new Promise((resolve) => setTimeout(resolve, 1500));
     
-    onComplete(task.id, task.reward);
+    onComplete(task.id, task.reward_amount);
     setIsSuccess(false);
     setSelectedOption(null);
     setCaptchaCompleted(false);
@@ -100,10 +102,10 @@ export function WorkModeModal({ task, isOpen, onClose, onComplete }: WorkModeMod
                   <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{task.botName}</h3>
+                  <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{task.bot_name}</h3>
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <Badge variant="ai" className="text-[10px]">{task.botVersion}</Badge>
-                    <Badge variant="reward" className="text-[10px] sm:text-xs">+${task.reward.toFixed(2)} USDC</Badge>
+                    <Badge variant="reward" className="text-[10px] sm:text-xs">+${(task.reward_amount || 0).toFixed(2)} USDC</Badge>
                   </div>
                 </div>
               </div>
@@ -116,7 +118,7 @@ export function WorkModeModal({ task, isOpen, onClose, onComplete }: WorkModeMod
             </div>
 
             {/* Content */}
-            <div className="p-4 sm:p-6 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
               {isSuccess ? (
                 <motion.div
                   initial={{ scale: 0.8, opacity: 0 }}
@@ -133,7 +135,7 @@ export function WorkModeModal({ task, isOpen, onClose, onComplete }: WorkModeMod
                   </motion.div>
                   <h3 className="text-lg sm:text-xl font-bold text-foreground mb-2">Task Complete!</h3>
                   <p className="text-sm sm:text-base text-muted-foreground">
-                    You earned <span className="text-success font-bold">+${task.reward.toFixed(2)} USDC</span>
+                    You earned <span className="text-success font-bold">+${(task.reward_amount || 0).toFixed(2)} USDC</span>
                   </p>
                   
                   {/* Blockchain confirmation animation */}
@@ -163,7 +165,7 @@ export function WorkModeModal({ task, isOpen, onClose, onComplete }: WorkModeMod
                       {/* Sentiment task UI */}
                       <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl bg-muted/50 border border-border">
                         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Analyze this content:</p>
-                        <p className="text-sm sm:text-base text-foreground italic">"{task.description}"</p>
+                        <p className="text-sm sm:text-base text-foreground italic">"{task.task_description}"</p>
                       </div>
 
                       <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4 text-center">
@@ -194,7 +196,7 @@ export function WorkModeModal({ task, isOpen, onClose, onComplete }: WorkModeMod
                       {/* Generic task UI */}
                       <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl bg-muted/50 border border-border">
                         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Task Description:</p>
-                        <p className="text-sm sm:text-base text-foreground">{task.description}</p>
+                        <p className="text-sm sm:text-base text-foreground">{task.task_description}</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 mb-4 sm:mb-6">
