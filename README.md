@@ -1,4 +1,64 @@
-# Welcome to your Lovable project
+# HumanGridAI
+
+**The error-handling layer for the autonomous AI economy**
+
+HumanGridAI is a decentralized human-in-the-loop verification protocol that enables AI agents to request human intelligence for tasks requiring judgment, verification, or CAPTCHA-breaking. Built with trustless USDC settlement and off-chain verification logic.
+
+## 📖 Documentation
+
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Complete protocol design, phases, and technical strategy
+- **[PHASE1_COMPLETE.md](./PHASE1_COMPLETE.md)** — Solidity smart contracts (USDC escrow + reputation SBTs)
+- **[PHASE2_COMPLETE.md](./PHASE2_COMPLETE.md)** — Rust verification service (task validation + fraud detection)
+- **[contracts/README.md](./contracts/README.md)** — Smart contract documentation
+- **[rust-service/README.md](./rust-service/README.md)** — Rust service API documentation
+
+## 🏗️ Project Structure
+
+```
+HumanGridAI/
+├── src/                    # Next.js frontend (Phase 0)
+├── contracts/              # Solidity smart contracts (Phase 1)
+│   ├── src/
+│   │   ├── HumanGridEscrow.sol
+│   │   └── ReputationSBT.sol
+│   └── test/
+├── rust-service/           # Rust verification service (Phase 2)
+│   ├── src/
+│   │   ├── verifier/       # Task verification logic
+│   │   ├── fraud/          # Fraud detection
+│   │   ├── reputation/     # Reputation calculation
+│   │   └── blockchain/     # Contract integration
+│   └── Cargo.toml
+└── README.md
+```
+
+## 🚀 Quick Start
+
+### 1. Deploy Smart Contracts
+
+```bash
+cd contracts
+forge install
+forge build
+forge test
+forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast
+```
+
+### 2. Run Rust Service
+
+```bash
+cd rust-service
+cp .env.example .env
+# Edit .env with contract addresses
+cargo run
+```
+
+### 3. Run Frontend
+
+```bash
+npm install
+npm run dev
+```
 
 ## Project info
 

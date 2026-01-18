@@ -1,0 +1,308 @@
+/**
+ * Blockchain Integration Layer
+ *
+ * This module provides utilities for interacting with the smart contracts
+ * deployed in Phase 1. It uses viem for type-safe contract interactions.
+ */
+
+import {
+  createPublicClient,
+  createWalletClient,
+  custom,
+  parseAbi,
+  http,
+} from "viem";
+import { base, baseSepolia } from "viem/chains";
+
+// Contract addresses from Phase 1 deployment
+const ESCROW_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_ADDRESS as `0x${string}`;
+const REPUTATION_ADDRESS = process.env
+  .NEXT_PUBLIC_REPUTATION_ADDRESS as `0x${string}`;
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
+
+// Use Base Sepolia for testnet, Base for production
+const chain = process.env.NEXT_PUBLIC_CHAIN_ID === "8453" ? base : baseSepolia;
+
+// RPC URL from Alchemy
+const RPC_URL = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL;
+
+// ABIs (simplified - only what we need)
+const escrowAbi = parseAbi([
+  "function createTask(bytes32 taskId, address worker, uint256 amount) external",
+  "function getTask(bytes32 taskId) external view returns (address requester, address worker, uint256 amount, uint256 createdAt, bool completed, bool cancelled)",
+  "function isTaskActive(bytes32 taskId) external view returns (bool)",
+  "event TaskCreated(bytes32 indexed taskId, address indexed requester, address indexed worker, uint256 amount, uint256 createdAt)",
+  "event TaskCompleted(bytes32 indexed taskId, address indexed worker, uint256 amount, uint256 completedAt)",
+  "event TaskCancelled(bytes32 indexed taskId, address indexed requester, uint256 refundAmount, uint256 cancelledAt)",
+]);
+
+const reputationAbi = parseAbi([
+  "function getTier(address worker) external view returns (uint8)",
+  "function hasReputation(address worker) external view returns (bool)",
+  "function getTierName(uint8 tier) external pure returns (string)",
+  "event ReputationMinted(address indexed worker, uint8 tier, uint256 timestamp)",
+  "event ReputationUpgraded(address indexed worker, uint8 oldTier, uint8 newTier)",
+]);
+
+const usdcAbi = parseAbi([
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function balanceOf(address account) external view returns (uint256)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
+]);
+
+/**
+ * Get public client for reading blockchain state
+ */
+export function getPublicClient() {
+  return createPublicClient({
+    chain,
+    transport: http(RPC_URL),
+  });
+}
+
+/**
+ * Get wallet client for writing transactions (requires browser wallet)
+ */
+export function getWalletClient() {
+  if (typeof window === "undefined" || !window.ethereum) {
+    throw new Error("No wallet detected");
+  }
+
+  return createWalletClient({
+    chain,
+    transport: custom(window.ethereum),
+  });
+}
+
+/**
+ * Create a task and deposit USDC to escrow
+ */
+export async function createTask(
+  taskId: string,
+  worker: `0x${string}`,
+  amount: bigint
+): Promise<`0x${string}`> {
+  const walletClient = getWalletClient();
+  const [account] = await walletClient.getAddresses();
+
+  // First, approve USDC
+  const approveHash = await walletClient.writeContract({
+    address: USDC_ADDRESS,
+    abi: usdcAbi,
+    functionName: "approve",
+    args: [ESCROW_ADDRESS, amount],
+    account,
+  });
+
+  // Wait for approval
+  const publicClient = getPublicClient();
+  await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+  // Then create task
+  const taskIdBytes = taskId as `0x${string}`;
+  const hash = await walletClient.writeContract({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    functionName: "createTask",
+    args: [taskIdBytes, worker, amount],
+    account,
+  });
+
+  return hash;
+}
+
+/**
+ * Get task details from blockchain
+ */
+export async function getTask(taskId: string) {
+  const publicClient = getPublicClient();
+  const taskIdBytes = taskId as `0x${string}`;
+
+  const result = await publicClient.readContract({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    functionName: "getTask",
+    args: [taskIdBytes],
+  });
+
+  return {
+    requester: result[0],
+    worker: result[1],
+    amount: result[2],
+    createdAt: result[3],
+    completed: result[4],
+    cancelled: result[5],
+  };
+}
+
+/**
+ * Check if task is active
+ */
+export async function isTaskActive(taskId: string): Promise<boolean> {
+  const publicClient = getPublicClient();
+  const taskIdBytes = taskId as `0x${string}`;
+
+  return publicClient.readContract({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    functionName: "isTaskActive",
+    args: [taskIdBytes],
+  });
+}
+
+/**
+ * Get worker's reputation tier
+ */
+export async function getReputationTier(
+  worker: `0x${string}`
+): Promise<number> {
+  const publicClient = getPublicClient();
+
+  return publicClient.readContract({
+    address: REPUTATION_ADDRESS,
+    abi: reputationAbi,
+    functionName: "getTier",
+    args: [worker],
+  });
+}
+
+/**
+ * Get worker's reputation tier name
+ */
+export async function getReputationTierName(tier: number): Promise<string> {
+  const publicClient = getPublicClient();
+
+  return publicClient.readContract({
+    address: REPUTATION_ADDRESS,
+    abi: reputationAbi,
+    functionName: "getTierName",
+    args: [tier],
+  });
+}
+
+/**
+ * Check if worker has reputation
+ */
+export async function hasReputation(worker: `0x${string}`): Promise<boolean> {
+  const publicClient = getPublicClient();
+
+  return publicClient.readContract({
+    address: REPUTATION_ADDRESS,
+    abi: reputationAbi,
+    functionName: "hasReputation",
+    args: [worker],
+  });
+}
+
+/**
+ * Get USDC balance
+ */
+export async function getUsdcBalance(account: `0x${string}`): Promise<bigint> {
+  const publicClient = getPublicClient();
+
+  return publicClient.readContract({
+    address: USDC_ADDRESS,
+    abi: usdcAbi,
+    functionName: "balanceOf",
+    args: [account],
+  });
+}
+
+/**
+ * Watch for TaskCompleted events
+ */
+export function watchTaskCompleted(
+  onTaskCompleted: (log: {
+    taskId: string;
+    worker: string;
+    amount: bigint;
+    completedAt: bigint;
+  }) => void
+) {
+  const publicClient = getPublicClient();
+
+  return publicClient.watchContractEvent({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    eventName: "TaskCompleted",
+    onLogs: (logs) => {
+      logs.forEach((log) => {
+        if (
+          log.args.taskId &&
+          log.args.worker &&
+          log.args.amount &&
+          log.args.completedAt
+        ) {
+          onTaskCompleted({
+            taskId: log.args.taskId,
+            worker: log.args.worker,
+            amount: log.args.amount,
+            completedAt: log.args.completedAt,
+          });
+        }
+      });
+    },
+  });
+}
+
+/**
+ * Watch for ReputationMinted events
+ */
+export function watchReputationMinted(
+  onReputationMinted: (log: {
+    worker: string;
+    tier: number;
+    timestamp: bigint;
+  }) => void
+) {
+  const publicClient = getPublicClient();
+
+  return publicClient.watchContractEvent({
+    address: REPUTATION_ADDRESS,
+    abi: reputationAbi,
+    eventName: "ReputationMinted",
+    onLogs: (logs) => {
+      logs.forEach((log) => {
+        if (
+          log.args.worker &&
+          log.args.tier !== undefined &&
+          log.args.timestamp
+        ) {
+          onReputationMinted({
+            worker: log.args.worker,
+            tier: log.args.tier,
+            timestamp: log.args.timestamp,
+          });
+        }
+      });
+    },
+  });
+}
+
+/**
+ * Format USDC amount (6 decimals)
+ */
+export function formatUsdc(amount: bigint): string {
+  return (Number(amount) / 1_000_000).toFixed(2);
+}
+
+/**
+ * Parse USDC amount to wei
+ */
+export function parseUsdc(amount: string): bigint {
+  return BigInt(Math.floor(parseFloat(amount) * 1_000_000));
+}
+
+/**
+ * Generate task ID from string
+ */
+export function generateTaskId(input: string): `0x${string}` {
+  // In production, use keccak256 or similar
+  // For now, simple hex encoding
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hex = Array.from(data)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `0x${hex.padEnd(64, "0")}` as `0x${string}`;
+}

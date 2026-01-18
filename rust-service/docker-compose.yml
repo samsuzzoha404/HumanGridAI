@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  humangrid-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=info,humangrid_service=debug
+      - CHAIN_ID=${CHAIN_ID}
+      - RPC_URL=${RPC_URL}
+      - RPC_WS_URL=${RPC_WS_URL}
+      - ESCROW_CONTRACT_ADDRESS=${ESCROW_CONTRACT_ADDRESS}
+      - REPUTATION_CONTRACT_ADDRESS=${REPUTATION_CONTRACT_ADDRESS}
+      - VERIFIER_PRIVATE_KEY=${VERIFIER_PRIVATE_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - API_KEY_SALT=${API_KEY_SALT}
+      - MAX_REQUESTS_PER_MINUTE=100
+      - CAPTCHA_TIMEOUT_SECONDS=300
+      - MIN_CONFIDENCE_SCORE=0.75
+      - MAX_RETRY_ATTEMPTS=3
+      - REPUTATION_BRONZE_TASKS=10
+      - REPUTATION_SILVER_TASKS=50
+      - REPUTATION_GOLD_TASKS=200
+      - REPUTATION_PLATINUM_TASKS=1000
+      - ENABLE_FRAUD_DETECTION=true
+      - ENABLE_MULTI_HUMAN_CONSENSUS=false
+      - ENABLE_REPUTATION_MINTING=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: humangrid
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

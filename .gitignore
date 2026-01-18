@@ -22,3 +22,50 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging.local
+.env.*.local
+.env
+.env.test
+
+
+# Next.js build output
+.next/
+out/
+
+# Dependencies
+node_modules/
+
+# Rust build artifacts
+rust-service/target/
+target/
+
+# Foundry/Forge
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Lockfiles (optional, keep bun.lockb if needed)
+# package-lock.json
+# yarn.lock
