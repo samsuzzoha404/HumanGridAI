@@ -27,12 +27,14 @@ CREATE TABLE IF NOT EXISTS circle_transactions (
 
 CREATE TABLE IF NOT EXISTS circle_webhook_events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  notification_id TEXT NOT NULL UNIQUE,  -- For idempotency deduplication
   event_type TEXT NOT NULL,
   event_data JSONB NOT NULL,
   signature TEXT,
   key_id TEXT,
   processed BOOLEAN DEFAULT FALSE,
-  received_at TIMESTAMPTZ DEFAULT NOW()
+  received_at TIMESTAMPTZ DEFAULT NOW(),
+  processed_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_circle_wallets_user_id ON circle_wallets(user_id);
@@ -41,6 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_circle_transactions_task_id ON circle_transaction
 CREATE INDEX IF NOT EXISTS idx_circle_transactions_status ON circle_transactions(status);
 CREATE INDEX IF NOT EXISTS idx_circle_webhook_events_processed ON circle_webhook_events(processed);
 CREATE INDEX IF NOT EXISTS idx_circle_webhook_events_type ON circle_webhook_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_circle_webhook_events_notification_id ON circle_webhook_events(notification_id);  -- For fast idempotency checks
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

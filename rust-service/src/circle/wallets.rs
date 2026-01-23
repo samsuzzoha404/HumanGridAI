@@ -5,21 +5,28 @@ use uuid::Uuid;
 
 impl CircleClient {
     /// Create a new Circle wallet for a user
+    /// CRITICAL: Enforces Smart Contract Account (SCA) creation with ERC-4337
     pub async fn create_wallet(&self, user_id: &str, blockchain: &str) -> Result<WalletResponse> {
         let url = format!("{}/v1/w3s/developer/wallets", self.api_url());
         
-        // Generate idempotency key for this request
-        let idempotency_key = Uuid::new_v4().to_string();
+        // Generate deterministic idempotency key to prevent duplicate wallets on retry
+        // Format: user_wallet_{user_id}_{blockchain}
+        let idempotency_key = format!("user_wallet_{}_{}", user_id, blockchain);
         
         let payload = serde_json::json!({
             "idempotencyKey": idempotency_key,
             "entitySecretCiphertext": self.config.circle_entity_secret,
+            "accountType": "SCA",  // ← CRITICAL: Enforce Smart Contract Account
             "blockchains": [blockchain],
-            "walletSetId": self.config.circle_wallet_set_id,
+            "walletSetId": self.config.circle_user_wallet_set_id,  // Use dedicated user wallet set
             "metadata": [
                 {
                     "key": "user_id",
                     "value": user_id
+                },
+                {
+                    "key": "wallet_type",
+                    "value": "user_worker"
                 },
                 {
                     "key": "description",

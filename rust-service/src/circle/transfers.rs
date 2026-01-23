@@ -17,7 +17,9 @@ impl CircleClient {
             .as_ref()
             .context("Treasury wallet ID not configured")?;
 
-        let idempotency_key = format!("task-{}-{}", task_id, Uuid::new_v4());
+        // Deterministic idempotency key: prevents duplicate transfers on retry
+        // Format: payment_task_{task_id}
+        let idempotency_key = format!("payment_task_{}", task_id);
 
         let request = TransferRequest {
             source: TransferEndpoint {

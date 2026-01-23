@@ -31,6 +31,8 @@ pub struct PayWorkerRequest {
     pub worker_wallet_id: String,
     pub amount: String,
     pub task_id: String,
+    /// Idempotency key to prevent double-payment
+    pub idempotency_key: Option<String>,
 }
 
 /// Payment response
@@ -104,6 +106,7 @@ pub async fn get_balance(
 }
 
 /// Pay a worker for completed task
+/// PROTECTED: Idempotency key prevents double-payment
 pub async fn pay_worker(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<PayWorkerRequest>,
@@ -113,6 +116,22 @@ pub async fn pay_worker(
         payload.worker_wallet_id, payload.task_id
     );
 
+    // Generate idempotency key if not provided
+    let idempotency_key = payload.idempotency_key.unwrap_or_else(|| {
+        let timestamp = chrono::Utc::now().timestamp() / 60; // Round to minute
+        let timestamp_str = timestamp.to_string();
+        crate::idempotency::generate_key(
+            "payment",
+            &[&payload.task_id, &payload.worker_wallet_id, &payload.amount, &timestamp_str],
+        )
+    });
+
+    info!("🔐 Payment idempotency key: {}", idempotency_key);
+    
+    // IMPORTANT: Circle API accepts idempotency keys
+    // The transfer_to_worker method should pass this key to Circle
+    // Circle will reject duplicate requests with same idempotency key
+    
     let transfer_response = state
         .circle_client
         .transfer_to_worker(&payload.worker_wallet_id, &payload.amount, &payload.task_id)
@@ -124,6 +143,8 @@ pub async fn pay_worker(
                 format!("Failed to initiate transfer: {}", e),
             )
         })?;
+
+    info!("✅ Payment initiated: {}", transfer_response.data.id);
 
     Ok(Json(PayWorkerResponse {
         transfer_id: transfer_response.data.id,

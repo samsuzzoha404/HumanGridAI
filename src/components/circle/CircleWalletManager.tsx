@@ -28,7 +28,9 @@ interface CircleWalletManagerProps {
 
 export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
   const [wallet, setWallet] = useState<CircleWallet | null>(null);
-  const [externalWalletAddress, setExternalWalletAddress] = useState<string | null>(null);
+  const [externalWalletAddress, setExternalWalletAddress] = useState<
+    string | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [connectingExternal, setConnectingExternal] = useState(false);
@@ -69,7 +71,9 @@ export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
 
     try {
       if (typeof window === "undefined" || !window.ethereum) {
-        throw new Error("No wallet installed. Please install Metamask or Coinbase Wallet.");
+        throw new Error(
+          "No wallet installed. Please install Metamask or Coinbase Wallet.",
+        );
       }
 
       const client = createWalletClient({
@@ -112,9 +116,7 @@ export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
                 <Globe className="h-5 w-5 text-blue-500" />
                 External Wallet
               </CardTitle>
-              <CardDescription>
-                Base Sepolia • Active
-              </CardDescription>
+              <CardDescription>Base Sepolia • Active</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={disconnectExternal}>
               Disconnect
@@ -122,7 +124,9 @@ export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
           </CardHeader>
           <CardContent className="space-y-6 pt-4">
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Wallet Address</label>
+              <label className="text-sm font-medium text-muted-foreground">
+                Wallet Address
+              </label>
               <div className="mt-1 relative group">
                 <p className="text-xs font-mono bg-muted p-3 rounded-md break-all border group-hover:border-blue-200 transition-colors">
                   {externalWalletAddress}
@@ -131,27 +135,34 @@ export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Balance</label>
+              <label className="text-sm font-medium text-muted-foreground">
+                Balance
+              </label>
               <div className="mt-2">
                 <ExternalBalance address={externalWalletAddress} />
               </div>
             </div>
-            
+
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Status</label>
+              <label className="text-sm font-medium text-muted-foreground">
+                Status
+              </label>
               <div className="mt-2 flex items-center gap-2">
-                 <span className="flex h-2 w-2 rounded-full bg-green-500" />
-                 <span className="text-sm font-medium">Connected via Browser Extension</span>
+                <span className="flex h-2 w-2 rounded-full bg-green-500" />
+                <span className="text-sm font-medium">
+                  Connected via Browser Extension
+                </span>
               </div>
             </div>
 
             <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
               <div className="flex items-center gap-2 text-blue-700 mb-1">
-                 <CheckCircle2 className="h-4 w-4" />
-                 <span className="text-xs font-semibold">Ready for Tasks</span>
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="text-xs font-semibold">Ready for Tasks</span>
               </div>
               <p className="text-[10px] text-blue-600/80">
-                You can now use this wallet to receive payments and verify tasks on the Base Sepolia network.
+                You can now use this wallet to receive payments and verify tasks
+                on the Base Sepolia network.
               </p>
             </div>
           </CardContent>
@@ -161,83 +172,7 @@ export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
   }
 
   if (!wallet) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Connect Wallet
-          </CardTitle>
-          <CardDescription>
-            Create a secure USDC wallet or connect your existing one
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          <div className="grid gap-4">
-            <div className="space-y-2">
-              <Button
-                onClick={handleCreateWallet}
-                disabled={creating || connectingExternal}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all duration-300"
-                size="lg"
-              >
-                {creating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating wallet...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Create New USDC Wallet
-                  </>
-                )}
-              </Button>
-              <p className="text-[10px] text-muted-foreground text-center">
-                Powered by Circle. Best for new users.
-              </p>
-            </div>
-
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or connect existing
-                </span>
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={handleConnectExternal}
-              disabled={creating || connectingExternal}
-              className="w-full border-dashed border-2 hover:border-solid hover:bg-muted/50 transition-all duration-300"
-              size="lg"
-            >
-              {connectingExternal ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Globe className="mr-2 h-4 w-4" />
-                  Connect External Wallet
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return null; // Wallet connection is handled on the connect-wallet page
   }
 
   return (

@@ -15,6 +15,30 @@ const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const rustServiceUrl =
   Deno.env.get("RUST_SERVICE_URL") || "http://localhost:8080";
 
+/**
+ * Verify Circle webhook signature using Rust service
+ * CRITICAL: Prevents forged webhooks from attackers
+ */
+async function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  keyId: string,
+  rustUrl: string,
+): Promise<boolean> {
+  try {
+    const response = await fetch(`${rustUrl}/api/circle/verify-webhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload, signature, key_id: keyId }),
+    });
+    const result = await response.json();
+    return result.valid === true;
+  } catch (error) {
+    console.error("Signature verification failed:", error);
+    return false;
+  }
+}
+
 serve(async (req) => {
   try {
     // Only accept POST requests
@@ -40,18 +64,63 @@ serve(async (req) => {
       id: webhookData.notificationId,
     });
 
-    // Store webhook event in Supabase
+    // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // CRITICAL: Verify webhook signature before processing
+    const isValid = await verifyWebhookSignature(
+      payload,
+      signature,
+      keyId,
+      rustServiceUrl,
+    );
+
+    if (!isValid) {
+      console.error("❌ Invalid webhook signature - possible attack");
+      return new Response("Invalid signature", { status: 403 });
+    }
+
+    console.log("✅ Webhook signature verified");
+
+    // Idempotency check: prevent duplicate processing
+    const { data: existing } = await supabase
+      .from("circle_webhook_events")
+      .select("id, processed")
+      .eq("notification_id", webhookData.notificationId)
+      .single();
+
+    if (existing) {
+      if (existing.processed) {
+        console.log(
+          `⚠️ Webhook ${webhookData.notificationId} already processed - skipping`,
+        );
+        return new Response(
+          JSON.stringify({ success: true, duplicate: true }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      // Mark as being processed
+      console.log(`Reprocessing failed webhook ${webhookData.notificationId}`);
+    }
+
+    // Store webhook event in Supabase (upsert for idempotency)
     const { error: insertError } = await supabase
       .from("circle_webhook_events")
-      .insert({
-        event_type: webhookData.notificationType,
-        event_data: webhookData,
-        signature,
-        key_id: keyId,
-        processed: false,
-      });
+      .upsert(
+        {
+          notification_id: webhookData.notificationId,
+          event_type: webhookData.notificationType,
+          event_data: webhookData,
+          signature,
+          key_id: keyId,
+          processed: false,
+          received_at: new Date().toISOString(),
+        },
+        { onConflict: "notification_id" },
+      );
 
     if (insertError) {
       console.error("Failed to store webhook event:", insertError);
@@ -60,6 +129,12 @@ serve(async (req) => {
 
     // Process specific events
     await processWebhookEvent(supabase, webhookData);
+
+    // Mark webhook as processed
+    await supabase
+      .from("circle_webhook_events")
+      .update({ processed: true })
+      .eq("notification_id", webhookData.notificationId);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
@@ -101,33 +176,40 @@ async function processWebhookEvent(supabase: any, webhookData: any) {
 async function handleInboundTransfer(supabase: any, notification: any) {
   console.log("Processing inbound transfer:", notification.id);
 
-  // Update circle_transactions table
-  await supabase.from("circle_transactions").upsert({
-    circle_tx_id: notification.id,
-    status: notification.state?.toLowerCase() || "pending",
-    blockchain_tx_hash: notification.txHash,
-    updated_at: new Date().toISOString(),
-  });
+  // Update circle_transactions table (idempotent)
+  await supabase.from("circle_transactions").upsert(
+    {
+      circle_tx_id: notification.id,
+      status: notification.state?.toLowerCase() || "pending",
+      blockchain_tx_hash: notification.txHash,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "circle_tx_id" },
+  );
 }
 
 async function handleOutboundTransfer(supabase: any, notification: any) {
   console.log("Processing outbound transfer:", notification.id);
 
-  // Update circle_transactions table
+  // Upsert transaction status (idempotent)
   const { data, error } = await supabase
     .from("circle_transactions")
-    .update({
-      status: notification.state?.toLowerCase() || "pending",
-      blockchain_tx_hash: notification.txHash,
-      completed_at:
-        notification.state === "COMPLETE" ? new Date().toISOString() : null,
-    })
-    .eq("circle_tx_id", notification.id)
+    .upsert(
+      {
+        circle_tx_id: notification.id,
+        status: notification.state?.toLowerCase() || "pending",
+        blockchain_tx_hash: notification.txHash,
+        completed_at:
+          notification.state === "COMPLETE" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "circle_tx_id" },
+    )
     .select();
 
   if (error) {
-    console.error("Failed to update transaction:", error);
-    return;
+    console.error("Failed to upsert transaction:", error);
+    throw error; // Fail loudly - webhook will retry
   }
 
   // If transaction completed, update task status

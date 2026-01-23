@@ -21,8 +21,27 @@ pub struct Config {
     // Circle API
     pub circle_api_key: String,
     pub circle_api_url: String,
+    
+    // SECURITY: Entity secret handling
+    // This should be RSA-OAEP encrypted ciphertext from Circle
+    // Production: Encrypt using Circle's public key before storing
+    #[serde(default)]
     pub circle_entity_secret: String,
-    pub circle_wallet_set_id: String,
+    
+    // If true, entity_secret is encrypted and needs decryption
+    #[serde(default)]
+    pub circle_entity_secret_encrypted: bool,
+    
+    // Path to Circle's public key for encryption (optional)
+    #[serde(default)]
+    pub circle_public_key_path: Option<String>,
+    
+    // Wallet Set IDs - Separate sets for security and management
+    pub circle_user_wallet_set_id: String,     // For user/worker wallets
+    pub circle_treasury_wallet_set_id: String, // For treasury operations
+    pub circle_agent_wallet_set_id: Option<String>, // For AI agents (future)
+    
+    // Treasury configuration
     pub circle_treasury_wallet_id: Option<String>,
     pub circle_treasury_address: Option<String>,
 
@@ -89,6 +108,45 @@ impl Config {
             1 // Bronze
         } else {
             0 // New
+        }
+    }
+
+    /// Get entity secret (decrypt if encrypted)
+    /// SECURITY: Never log the returned value
+    pub fn get_entity_secret(&self) -> Result<String, String> {
+        if self.circle_entity_secret_encrypted {
+            // TODO: Implement RSA-OAEP decryption
+            // For now, return error to prevent plaintext usage
+            Err("Entity secret decryption not yet implemented".to_string())
+        } else {
+            // Warn about plaintext usage
+            if !self.circle_entity_secret.is_empty() {
+                tracing::warn!(
+                    "⚠️  Using plaintext entity secret - encrypt before production!"
+                );
+            }
+            Ok(self.circle_entity_secret.clone())
+        }
+    }
+
+    /// Validate that security settings are production-ready
+    pub fn validate_security(&self) -> Result<(), String> {
+        let mut errors = Vec::new();
+
+        // Check entity secret encryption
+        if !self.circle_entity_secret.is_empty() && !self.circle_entity_secret_encrypted {
+            errors.push("Entity secret is not encrypted (BLOCKER for production)");
+        }
+
+        // Check wallet set separation
+        if self.circle_user_wallet_set_id == self.circle_treasury_wallet_set_id {
+            errors.push("User and treasury wallet sets must be separate");
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("; "))
         }
     }
 }

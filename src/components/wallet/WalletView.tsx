@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 
 interface WalletViewProps {
   totalEarnings: number;
@@ -14,8 +15,22 @@ interface WalletViewProps {
 }
 
 export function WalletView({ totalEarnings, transactions }: WalletViewProps) {
-  const walletAddress = '0x7a9F...4b2C';
-  const fullAddress = '0x7a9F8d2E1c3B5a6F0e9D8c7B6a5F4e3D2c1B0a9F4b2C';
+  const [walletAddress, setWalletAddress] = useState('');
+  const [fullAddress, setFullAddress] = useState('');
+
+  useEffect(() => {
+    // Get wallet address from localStorage
+    const address = localStorage.getItem("wallet_address");
+    if (address) {
+      setFullAddress(address);
+      // Format address for display (0x1234...5678)
+      const shortened = `${address.slice(0, 6)}...${address.slice(-4)}`;
+      setWalletAddress(shortened);
+    } else {
+      setWalletAddress('0x7a9F...4b2C');
+      setFullAddress('0x7a9F8d2E1c3B5a6F0e9D8c7B6a5F4e3D2c1B0a9F4b2C');
+    }
+  }, []);
 
   const copyAddress = () => {
     navigator.clipboard.writeText(fullAddress);

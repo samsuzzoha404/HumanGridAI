@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Header } from "@/components/layout/Header";
@@ -10,6 +11,9 @@ import { DashboardView } from "@/components/dashboard/DashboardView";
 import { TaskStream } from "@/components/tasks/TaskStream";
 import { WorkModeModal } from "@/components/tasks/WorkModeModal";
 import { Web3Background } from "@/components/ui/Web3Background";
+import { useAuth } from "@/contexts/AuthContext";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { ensureUserStats } from "@/lib/auth";
 import {
   mockTasks,
   mockUserStats,
@@ -74,6 +78,7 @@ const CircleWalletManager = dynamic(
 const TASK_STREAM_SIZE = 8;
 
 export default function DashboardPage() {
+  // All hooks must be at the top
   const [activeTab, setActiveTab] = useState("dashboard");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stats, setStats] = useState<UserStats>(mockUserStats);
@@ -81,6 +86,9 @@ export default function DashboardPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState("");
+  const [walletCheckComplete, setWalletCheckComplete] = useState(false);
 
   // Task pool management
   const taskPoolRef = useRef<Task[]>([]);
@@ -88,11 +96,79 @@ export default function DashboardPage() {
   const demoTaskIndexRef = useRef(0);
   const usingSupabaseTasksRef = useRef(false);
 
-  // TODO: Get actual user ID from auth
-  const userId = "demo-user-id";
+  // Get user from auth context or wallet
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
 
-  // Get next task from pool (Supabase or demo)
-  const getNextTask = (): Task | null => {
+  const userId = user?.id || walletAddress || "demo-user-id";
+
+  // Check for wallet connection on mount - verify it's actually connected
+  useEffect(() => {
+    const verifyWalletConnection = async () => {
+      const storedAddress = localStorage.getItem("wallet_address");
+      const storedConnected = localStorage.getItem("wallet_connected");
+
+      if (storedConnected === "true" && storedAddress) {
+        // Verify the wallet is still actually connected
+        if (window.ethereum) {
+          try {
+            const accounts = await window.ethereum.request({
+              method: "eth_accounts",
+            });
+
+            if (
+              accounts &&
+              accounts.length > 0 &&
+              accounts[0].toLowerCase() === storedAddress.toLowerCase()
+            ) {
+              // Wallet is still connected
+              setWalletConnected(true);
+              setWalletAddress(storedAddress);
+              console.log("Wallet verified and connected:", storedAddress);
+            } else {
+              // Wallet disconnected or changed, clear localStorage
+              console.log("Wallet not connected, clearing localStorage");
+              localStorage.removeItem("wallet_connected");
+              localStorage.removeItem("wallet_address");
+            }
+          } catch (error) {
+            console.error("Error verifying wallet:", error);
+            localStorage.removeItem("wallet_connected");
+            localStorage.removeItem("wallet_address");
+          }
+        }
+      }
+
+      setWalletCheckComplete(true);
+    };
+
+    verifyWalletConnection();
+  }, []);
+
+  // Redirect to wallet connection if not authenticated
+  useEffect(() => {
+    if (walletCheckComplete && !authLoading && !user && !walletConnected) {
+      console.log("No authentication found, redirecting to wallet connection");
+      router.push("/connect-wallet");
+    }
+  }, [walletCheckComplete, authLoading, user, walletConnected, router]);
+
+  // Initialize user stats on mount
+  useEffect(() => {
+    const initUserStats = async () => {
+      if (user?.id) {
+        try {
+          await ensureUserStats(user.id);
+        } catch (error) {
+          console.error("Failed to initialize user stats:", error);
+        }
+      }
+    };
+    initUserStats();
+  }, [user?.id]);
+
+  // Callback functions that don't use hooks
+  const getNextTask = useCallback((): Task | null => {
     // First, try to get from Supabase pool
     const availableSupabaseTasks = taskPoolRef.current.filter(
       (task) => !usedTaskIdsRef.current.has(task.id),
@@ -112,10 +188,10 @@ export default function DashboardPage() {
     };
     demoTaskIndexRef.current++;
     return uniqueTask;
-  };
+  }, []);
 
   // Initialize task stream with initial tasks
-  const initializeTaskStream = () => {
+  const initializeTaskStream = useCallback(() => {
     const initialTasks: Task[] = [];
     // Start with 3-4 tasks initially
     for (let i = 0; i < 4; i++) {
@@ -123,10 +199,12 @@ export default function DashboardPage() {
       if (task) initialTasks.push(task);
     }
     setTasks(initialTasks);
-  };
+  }, [getNextTask]);
 
   // Initial data fetch from Supabase
   useEffect(() => {
+    if (!user && !walletConnected) return; // Don't load if not authenticated
+
     const loadInitialData = async () => {
       setIsLoading(true);
       try {
@@ -168,10 +246,12 @@ export default function DashboardPage() {
     };
 
     loadInitialData();
-  }, [userId]);
+  }, [userId, user, walletConnected, initializeTaskStream]);
 
   // Add new task every 30 seconds
   useEffect(() => {
+    if (!user && !walletConnected) return; // Don't run if not authenticated
+
     const interval = setInterval(() => {
       const newTask = getNextTask();
       if (newTask) {
@@ -180,10 +260,12 @@ export default function DashboardPage() {
     }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [user, walletConnected, getNextTask]);
 
   // Real-time subscriptions for tasks and activity feed
   useEffect(() => {
+    if (!user && !walletConnected) return; // Don't subscribe if not authenticated
+
     // Subscribe to task updates
     const taskSubscription = subscribeToTasks((payload) => {
       if (payload.eventType === "INSERT") {
@@ -346,6 +428,25 @@ export default function DashboardPage() {
         return null;
     }
   };
+
+  // Show login form if not authenticated (AFTER all hooks)
+  if (authLoading || !walletCheckComplete) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // This check is now handled by the redirect useEffect above
+  // But kept as a fallback
+  if (!user && !walletConnected) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+        <div className="text-white text-xl">Redirecting...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -14,6 +14,9 @@ pub enum AppError {
     #[error("Invalid task submission: {0}")]
     InvalidSubmission(String),
 
+    #[error("Invalid payload: {0}")]
+    InvalidPayload(String),
+
     #[error("Verification failed: {0}")]
     VerificationFailed(String),
 
@@ -39,11 +42,41 @@ pub enum AppError {
     InternalError(String),
 }
 
+impl AppError {
+    /// Sanitize error message to prevent information leakage
+    fn sanitize_message(&self) -> String {
+        let msg = self.to_string();
+        
+        // Remove sensitive patterns from error messages
+        let sensitive_patterns = [
+            "entity_secret",
+            "api_key",
+            "private_key",
+            "password",
+            "secret",
+            "DATABASE_URL",
+            "postgres://",
+        ];
+        
+        for pattern in sensitive_patterns {
+            if msg.to_lowercase().contains(&pattern.to_lowercase()) {
+                tracing::error!("🚨 Attempted to leak sensitive data in error: {}", pattern);
+                return "Internal server error (details hidden for security)".to_string();
+            }
+        }
+        
+        msg
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        let sanitized_message = self.sanitize_message();
+        
         let (status, error_message) = match self {
-            AppError::TaskNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
-            AppError::InvalidSubmission(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            AppError::TaskNotFound(_) => (StatusCode::NOT_FOUND, sanitized_message),
+            AppError::InvalidSubmission(_) => (StatusCode::BAD_REQUEST, sanitized_message),
+            AppError::InvalidPayload(_) => (StatusCode::BAD_REQUEST, sanitized_message),
             AppError::VerificationFailed(_) => (StatusCode::UNPROCESSABLE_ENTITY, self.to_string()),
             AppError::ValidationError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, self.to_string()),

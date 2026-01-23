@@ -13,10 +13,22 @@ pub enum FraudRisk {
 }
 
 impl FraudDetector {
+    /// Create a new FraudDetector instance
+    pub fn new() -> Self {
+        FraudDetector
+    }
+
+    /// Check fraud score for a worker's submission
+    pub async fn check_fraud(&self, _worker: &str, _task_id: &str) -> f64 {
+        // Simple fraud detection - return low score for demo
+        // In production, this would check historical patterns, timing, etc.
+        0.1
+    }
+
     /// Analyze task submission for fraud indicators
     pub async fn analyze_submission(
-        worker: &str,
-        task_id: &str,
+        _worker: &str,
+        _task_id: &str,
         confidence_score: f64,
         time_taken_ms: u64,
     ) -> Result<FraudRisk, AppError> {
