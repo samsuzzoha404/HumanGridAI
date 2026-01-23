@@ -11,24 +11,44 @@ import {
   custom,
   parseAbi,
   http,
+  defineChain,
 } from "viem";
-import { base, baseSepolia } from "viem/chains";
 
-// Contract addresses from Phase 1 deployment
+// Arc Testnet configuration
+const arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "USDC",
+    symbol: "USDC",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.testnet.arc.network"],
+      webSocket: ["wss://rpc.testnet.arc.network"],
+    },
+  },
+  blockExplorers: {
+    default: { name: "ArcScan", url: "https://testnet.arcscan.app" },
+  },
+  testnet: true,
+});
+
+// Contract addresses from Arc Testnet deployment
 const ESCROW_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_ADDRESS as `0x${string}`;
 const REPUTATION_ADDRESS = process.env
   .NEXT_PUBLIC_REPUTATION_ADDRESS as `0x${string}`;
-const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
 
-// Use Base Sepolia for testnet, Base for production
-const chain = process.env.NEXT_PUBLIC_CHAIN_ID === "8453" ? base : baseSepolia;
+// Arc uses native USDC - no contract address needed
+const chain = arcTestnet;
 
 // RPC URL from Alchemy
 const RPC_URL = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL;
 
-// ABIs (simplified - only what we need)
+// ABIs for Arc Testnet contracts
 const escrowAbi = parseAbi([
-  "function createTask(bytes32 taskId, address worker, uint256 amount) external",
+  "function createTask(bytes32 taskId, address worker) external payable",
   "function getTask(bytes32 taskId) external view returns (address requester, address worker, uint256 amount, uint256 createdAt, bool completed, bool cancelled)",
   "function isTaskActive(bytes32 taskId) external view returns (bool)",
   "event TaskCreated(bytes32 indexed taskId, address indexed requester, address indexed worker, uint256 amount, uint256 createdAt)",
@@ -44,11 +64,7 @@ const reputationAbi = parseAbi([
   "event ReputationUpgraded(address indexed worker, uint8 oldTier, uint8 newTier)",
 ]);
 
-const usdcAbi = parseAbi([
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function balanceOf(address account) external view returns (uint256)",
-  "function allowance(address owner, address spender) external view returns (uint256)",
-]);
+// No USDC ABI needed - Arc uses native USDC
 
 /**
  * Get public client for reading blockchain state
@@ -75,38 +91,22 @@ export function getWalletClient() {
 }
 
 /**
- * Create a task and deposit USDC to escrow
+ * Create a task and deposit native USDC to escrow
+ * @param taskId Unique task identifier
+ * @param worker Worker address
+ * @param amount Amount in native USDC (18 decimals)
  */
 export async function createTask(
   taskId: string,
   worker: `0x${string}`,
-  amount: bigint
+  amount: bigint,
 ): Promise<`0x${string}`> {
   const walletClient = getWalletClient();
   const [account] = await walletClient.getAddresses();
 
-  // First, approve USDC
-  const approveHash = await walletClient.writeContract({
-    address: USDC_ADDRESS,
-    abi: usdcAbi,
-    functionName: "approve",
-    args: [ESCROW_ADDRESS, amount],
-    account,
-  });
+  // No approval needed - native USDC sent as msg.value
 
-  // Wait for approval
-  const publicClient = getPublicClient();
-  await publicClient.waitForTransactionReceipt({ hash: approveHash });
-
-  // Then create task
-  const taskIdBytes = taskId as `0x${string}`;
-  const hash = await walletClient.writeContract({
-    address: ESCROW_ADDRESS,
-    abi: escrowAbi,
-    functionName: "createTask",
-    args: [taskIdBytes, worker, amount],
-    account,
-  });
+  // Create task with native USDC\n  const taskIdBytes = taskId as `0x${string}`;\n  const hash = await walletClient.writeContract({\n    address: ESCROW_ADDRESS,\n    abi: escrowAbi,\n    functionName: \"createTask\",\n    args: [taskIdBytes, worker],\n    value: amount,  // Send native USDC as value\n    account,\n  });
 
   return hash;
 }
@@ -154,7 +154,7 @@ export async function isTaskActive(taskId: string): Promise<boolean> {
  * Get worker's reputation tier
  */
 export async function getReputationTier(
-  worker: `0x${string}`
+  worker: `0x${string}`,
 ): Promise<number> {
   const publicClient = getPublicClient();
 
@@ -195,17 +195,17 @@ export async function hasReputation(worker: `0x${string}`): Promise<boolean> {
 }
 
 /**
- * Get USDC balance
+ * Get native USDC balance on Arc Testnet
  */
 export async function getUsdcBalance(account: `0x${string}`): Promise<bigint> {
+  console.log("🔗 [blockchain.ts] Getting USDC balance for:", account);
   const publicClient = getPublicClient();
+  console.log("📡 [blockchain.ts] Public client created, fetching balance...");
 
-  return publicClient.readContract({
-    address: USDC_ADDRESS,
-    abi: usdcAbi,
-    functionName: "balanceOf",
-    args: [account],
-  });
+  // On Arc, USDC is the native currency
+  const balance = await publicClient.getBalance({ address: account });
+  console.log("✅ [blockchain.ts] Balance fetched:", balance.toString(), "wei");
+  return balance;
 }
 
 /**
@@ -217,7 +217,7 @@ export function watchTaskCompleted(
     worker: string;
     amount: bigint;
     completedAt: bigint;
-  }) => void
+  }) => void,
 ) {
   const publicClient = getPublicClient();
 
@@ -253,7 +253,7 @@ export function watchReputationMinted(
     worker: string;
     tier: number;
     timestamp: bigint;
-  }) => void
+  }) => void,
 ) {
   const publicClient = getPublicClient();
 
@@ -280,17 +280,17 @@ export function watchReputationMinted(
 }
 
 /**
- * Format USDC amount (6 decimals)
+ * Format USDC amount (18 decimals on Arc Testnet)
  */
 export function formatUsdc(amount: bigint): string {
-  return (Number(amount) / 1_000_000).toFixed(2);
+  return (Number(amount) / 1e18).toFixed(6);
 }
 
 /**
- * Parse USDC amount to wei
+ * Parse USDC amount to wei (18 decimals)
  */
 export function parseUsdc(amount: string): bigint {
-  return BigInt(Math.floor(parseFloat(amount) * 1_000_000));
+  return BigInt(Math.floor(parseFloat(amount) * 1e18));
 }
 
 /**

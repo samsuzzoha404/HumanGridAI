@@ -6,10 +6,31 @@ import {
   formatEther,
   formatUnits,
   parseAbi,
+  defineChain,
   type WalletClient,
-  type PublicClient
+  type PublicClient,
 } from "viem";
-import { baseSepolia } from "viem/chains";
+
+// Arc Testnet configuration
+const arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "USDC",
+    symbol: "USDC",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.testnet.arc.network"],
+      webSocket: ["wss://rpc.testnet.arc.network"],
+    },
+  },
+  blockExplorers: {
+    default: { name: "ArcScan", url: "https://testnet.arcscan.app" },
+  },
+  testnet: true,
+});
 import { createCircleWallet } from "./circleService";
 // EIP-6963 Types
 interface EIP6963ProviderInfo {
@@ -37,11 +58,11 @@ declare global {
     ethereum?: any;
     addEventListener(
       type: "eip6963:announceProvider",
-      listener: (event: EIP6963AnnounceProviderEvent) => void
+      listener: (event: EIP6963AnnounceProviderEvent) => void,
     ): void;
     removeEventListener(
       type: "eip6963:announceProvider",
-      listener: (event: EIP6963AnnounceProviderEvent) => void
+      listener: (event: EIP6963AnnounceProviderEvent) => void,
     ): void;
   }
 }
@@ -58,16 +79,19 @@ let discoveredProviders: EIP6963ProviderDetail[] = [];
 
 // Listen for providers immediately
 if (typeof window !== "undefined") {
-  window.addEventListener("eip6963:announceProvider", (event: EIP6963AnnounceProviderEvent) => {
-    const detail = event.detail;
-    if (!discoveredProviders.some(p => p.info.uuid === detail.info.uuid)) {
-      discoveredProviders.push({
-        info: detail.info,
-        provider: detail.provider
-      });
-    }
-  });
-  
+  window.addEventListener(
+    "eip6963:announceProvider",
+    (event: EIP6963AnnounceProviderEvent) => {
+      const detail = event.detail;
+      if (!discoveredProviders.some((p) => p.info.uuid === detail.info.uuid)) {
+        discoveredProviders.push({
+          info: detail.info,
+          provider: detail.provider,
+        });
+      }
+    },
+  );
+
   // Request providers to announce themselves
   window.dispatchEvent(new Event("eip6963:requestProvider"));
 }
@@ -79,18 +103,20 @@ export function getInjectedProviders(): EIP6963ProviderDetail[] {
 /**
  * Subscribe to provider announcements
  */
-export function onProviderDiscovered(callback: (provider: EIP6963ProviderDetail) => void): () => void {
+export function onProviderDiscovered(
+  callback: (provider: EIP6963ProviderDetail) => void,
+): () => void {
   if (typeof window === "undefined") return () => {};
 
   const listener = (event: EIP6963AnnounceProviderEvent) => {
     callback({
       info: event.detail.info,
-      provider: event.detail.provider
+      provider: event.detail.provider,
     });
   };
 
   window.addEventListener("eip6963:announceProvider", listener);
-  
+
   // Re-dispatch request to catch late loads
   window.dispatchEvent(new Event("eip6963:requestProvider"));
 
@@ -103,7 +129,7 @@ let publicClient: PublicClient | null = null;
 
 function getClients(specificProvider?: any) {
   if (typeof window === "undefined") return null;
-  
+
   // Use specific provider if given, otherwise fallback to window.ethereum
   const provider = specificProvider || window.ethereum;
   if (!provider) return null;
@@ -112,15 +138,15 @@ function getClients(specificProvider?: any) {
   // OR if we don't have one yet
   if (specificProvider || !walletClient) {
     walletClient = createWalletClient({
-      chain: baseSepolia,
+      chain: arcTestnet,
       transport: custom(provider),
     });
   }
 
   if (!publicClient) {
     publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(), // Uses public RPC or what's in viem/chains
+      chain: arcTestnet,
+      transport: http(), // Uses Arc Testnet RPC
     });
   }
 
@@ -131,39 +157,63 @@ function getClients(specificProvider?: any) {
  * Connect to a specific Web3 wallet
  * @param specificProvider Optional EIP-1193 provider (from EIP-6963)
  */
-export async function connectWallet(specificProvider?: any): Promise<WalletInfo> {
+export async function connectWallet(
+  specificProvider?: any,
+): Promise<WalletInfo> {
+  console.log(
+    "🔌 connectWallet called with provider:",
+    specificProvider ? "custom" : "default",
+  );
+
   // If no specific provider, check for window.ethereum
-  if (!specificProvider && (typeof window === "undefined" || !window.ethereum)) {
+  if (
+    !specificProvider &&
+    (typeof window === "undefined" || !window.ethereum)
+  ) {
     throw new Error(
-      "No Web3 wallet detected. Please install MetaMask, Coinbase Wallet, or another Web3 wallet."
+      "No Web3 wallet detected. Please install MetaMask, Coinbase Wallet, or another Web3 wallet.",
     );
   }
 
   try {
+    console.log("📱 Getting wallet clients...");
     const clients = getClients(specificProvider);
     if (!clients) throw new Error("Failed to initialize wallet client");
-    
+
     const { walletClient, publicClient } = clients;
+    console.log("✅ Clients initialized");
 
     // Request accounts
+    console.log("🔐 Requesting wallet addresses...");
     const [address] = await walletClient.requestAddresses();
-    
+
     if (!address) {
       throw new Error("No accounts found. Please unlock your wallet.");
     }
-    
+    console.log("✅ Address received:", address);
+
     // Get Chain ID
+    console.log("🔗 Getting chain ID...");
     const chainId = await walletClient.getChainId();
-    
+    console.log("✅ Current chain ID:", chainId);
+
     // Switch chain if needed
-    const targetChainId = baseSepolia.id;
+    const targetChainId = arcTestnet.id;
+    console.log("🎯 Target chain ID (Arc Testnet):", targetChainId);
+
     if (chainId !== targetChainId) {
-      await switchToBaseSepolia(); // This uses the cached walletClient which is now updated
+      console.log("⚠️ Wrong chain, switching to Arc Testnet...");
+      await switchToArcTestnet(); // This uses the cached walletClient which is now updated
+      console.log("✅ Switched to Arc Testnet");
+    } else {
+      console.log("✅ Already on Arc Testnet");
     }
 
     // Get Balance
+    console.log("💰 Getting balance...");
     const balance = await publicClient!.getBalance({ address });
     const balanceInEth = formatEther(balance);
+    console.log("✅ Balance:", balanceInEth, "USDC");
 
     return {
       address,
@@ -183,33 +233,39 @@ export async function connectWallet(specificProvider?: any): Promise<WalletInfo>
 export const connectMetaMask = connectWallet;
 
 /**
- * Switch to Base Sepolia
+ * Switch to Arc Testnet
  */
-export async function switchToBaseSepolia(): Promise<void> {
+export async function switchToArcTestnet(): Promise<void> {
   const clients = getClients();
   if (!clients) throw new Error("No wallet detected");
 
   try {
-    await clients.walletClient.switchChain({ id: baseSepolia.id });
+    await clients.walletClient.switchChain({ id: arcTestnet.id });
   } catch (error: any) {
     // 4902 = Chain not found
     if (error.code === 4902 || error.message?.includes("Unrecognized chain")) {
-      await addBaseSepolia();
+      await addArcTestnet();
     } else {
       throw error;
     }
   }
 }
 
+// Keep legacy alias for compatibility
+export const switchToBaseSepolia = switchToArcTestnet;
+
 /**
- * Add Base Sepolia
+ * Add Arc Testnet
  */
-export async function addBaseSepolia(): Promise<void> {
+export async function addArcTestnet(): Promise<void> {
   const clients = getClients();
   if (!clients) throw new Error("No wallet detected");
 
-  await clients.walletClient.addChain({ chain: baseSepolia });
+  await clients.walletClient.addChain({ chain: arcTestnet });
 }
+
+// Keep legacy alias for compatibility
+export const addBaseSepolia = addArcTestnet;
 
 /**
  * Sign a message
@@ -219,9 +275,9 @@ export async function signMessage(message: string): Promise<string> {
   if (!clients) throw new Error("No wallet detected");
 
   const [account] = await clients.walletClient.getAddresses();
-  return clients.walletClient.signMessage({ 
+  return clients.walletClient.signMessage({
     account,
-    message 
+    message,
   });
 }
 
@@ -267,9 +323,9 @@ export async function ensureCircleWallet(
 export async function getWalletBalance(address: string): Promise<string> {
   const clients = getClients();
   if (!clients) throw new Error("No wallet detected");
-  
-  const balance = await clients.publicClient.getBalance({ 
-    address: address as `0x${string}` 
+
+  const balance = await clients.publicClient.getBalance({
+    address: address as `0x${string}`,
   });
   return formatEther(balance);
 }
@@ -286,21 +342,21 @@ export async function getUSDCBalance(address: string): Promise<string> {
 
   const abi = parseAbi([
     "function balanceOf(address owner) view returns (uint256)",
-    "function decimals() view returns (uint8)"
+    "function decimals() view returns (uint8)",
   ]);
 
   const [balance, decimals] = await Promise.all([
-     clients.publicClient.readContract({
-        address: usdcAddress,
-        abi,
-        functionName: "balanceOf",
-        args: [address as `0x${string}`]
-     }),
-     clients.publicClient.readContract({
-        address: usdcAddress,
-        abi,
-        functionName: "decimals"
-     })
+    clients.publicClient.readContract({
+      address: usdcAddress,
+      abi,
+      functionName: "balanceOf",
+      args: [address as `0x${string}`],
+    }),
+    clients.publicClient.readContract({
+      address: usdcAddress,
+      abi,
+      functionName: "decimals",
+    }),
   ]);
 
   return formatUnits(balance, decimals);
@@ -313,26 +369,31 @@ export async function hasReputationNFT(address: string): Promise<boolean> {
   const clients = getClients();
   if (!clients) return false;
 
-  const reputationAddress = process.env.NEXT_PUBLIC_REPUTATION_ADDRESS as `0x${string}`;
+  const reputationAddress = process.env
+    .NEXT_PUBLIC_REPUTATION_ADDRESS as `0x${string}`;
   if (!reputationAddress) return false;
 
   try {
-     const balance = await clients.publicClient.readContract({
-        address: reputationAddress,
-        abi: parseAbi(["function balanceOf(address owner) view returns (uint256)"]),
-        functionName: "balanceOf",
-        args: [address as `0x${string}`]
-     });
-     return balance > 0n;
+    const balance = await clients.publicClient.readContract({
+      address: reputationAddress,
+      abi: parseAbi([
+        "function balanceOf(address owner) view returns (uint256)",
+      ]),
+      functionName: "balanceOf",
+      args: [address as `0x${string}`],
+    });
+    return balance > 0n;
   } catch (error) {
-     return false;
+    return false;
   }
 }
 
 /**
  * Listeners
  */
-export function onAccountsChanged(callback: (accounts: string[]) => void): () => void {
+export function onAccountsChanged(
+  callback: (accounts: string[]) => void,
+): () => void {
   if (typeof window !== "undefined" && window.ethereum) {
     window.ethereum.on("accountsChanged", callback);
     return () => window.ethereum.removeListener("accountsChanged", callback);
@@ -340,7 +401,9 @@ export function onAccountsChanged(callback: (accounts: string[]) => void): () =>
   return () => {};
 }
 
-export function onChainChanged(callback: (chainId: string) => void): () => void {
+export function onChainChanged(
+  callback: (chainId: string) => void,
+): () => void {
   if (typeof window !== "undefined" && window.ethereum) {
     window.ethereum.on("chainChanged", callback);
     return () => window.ethereum.removeListener("chainChanged", callback);

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {IERC20} from "./interfaces/IERC20.sol";
-
 /**
  * @title HumanGridEscrow
- * @notice Trustless USDC escrow for human task verification
+ * @notice Trustless native USDC escrow for human task verification (Arc Testnet)
  * @dev Solidity is intentionally boring — it is a vault, not a brain.
  *
+ * Arc Testnet uses USDC as the native gas token (18 decimals).
+ * This contract handles native USDC transfers, not ERC20.
+ *
  * This contract ONLY handles:
- * - Holding USDC in escrow
+ * - Holding native USDC in escrow
  * - Releasing payments on verifier approval
  * - Emitting immutable events
  *
@@ -29,7 +30,6 @@ contract HumanGridEscrow {
     error TaskNotFound();
     error TaskAlreadyExists();
     error TaskAlreadyCompleted();
-    error TaskNotExpired();
     error TransferFailed();
     error InvalidAddress();
 
@@ -64,6 +64,11 @@ contract HumanGridEscrow {
         address indexed newVerifier
     );
 
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
@@ -76,9 +81,6 @@ contract HumanGridEscrow {
         bool completed;
         bool cancelled;
     }
-
-    /// @notice USDC token contract
-    IERC20 public immutable usdc;
 
     /// @notice Authorized verifier (Rust service address)
     address public verifier;
@@ -110,50 +112,48 @@ contract HumanGridEscrow {
                             CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address _usdc, address _verifier) {
-        if (_usdc == address(0) || _verifier == address(0))
-            revert InvalidAddress();
+    constructor(address _verifier) {
+        if (_verifier == address(0)) revert InvalidAddress();
 
-        usdc = IERC20(_usdc);
         verifier = _verifier;
         owner = msg.sender;
     }
+
+    /// @notice Accept native USDC
+    receive() external payable {}
 
     /*//////////////////////////////////////////////////////////////
                         CORE ESCROW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Create a new task and deposit USDC into escrow
-     * @dev Requester must approve USDC before calling
+     * @notice Create a new task and deposit native USDC into escrow
+     * @dev Send USDC as msg.value
      * @param taskId Unique task identifier (generated off-chain)
      * @param worker Address of the assigned human worker
-     * @param amount USDC amount to pay upon completion
      */
-    function createTask(
-        bytes32 taskId,
-        address worker,
-        uint256 amount
-    ) external {
-        if (amount == 0) revert InvalidAmount();
+    function createTask(bytes32 taskId, address worker) external payable {
+        if (msg.value == 0) revert InvalidAmount();
         if (worker == address(0)) revert InvalidAddress();
         if (tasks[taskId].createdAt != 0) revert TaskAlreadyExists();
 
-        // Transfer USDC from requester to escrow
-        bool success = usdc.transferFrom(msg.sender, address(this), amount);
-        if (!success) revert TransferFailed();
-
-        // Store task details
+        // Store task details (CEI pattern - no external call needed)
         tasks[taskId] = Task({
             requester: msg.sender,
             worker: worker,
-            amount: amount,
+            amount: msg.value,
             createdAt: block.timestamp,
             completed: false,
             cancelled: false
         });
 
-        emit TaskCreated(taskId, msg.sender, worker, amount, block.timestamp);
+        emit TaskCreated(
+            taskId,
+            msg.sender,
+            worker,
+            msg.value,
+            block.timestamp
+        );
     }
 
     /**
@@ -169,11 +169,11 @@ contract HumanGridEscrow {
         if (task.completed) revert TaskAlreadyCompleted();
         if (task.cancelled) revert TaskNotFound();
 
-        // Mark as completed
+        // Mark as completed (state change before external call)
         task.completed = true;
 
-        // Transfer USDC to worker
-        bool success = usdc.transfer(task.worker, task.amount);
+        // Transfer native USDC to worker
+        (bool success, ) = task.worker.call{value: task.amount}("");
         if (!success) revert TransferFailed();
 
         emit TaskCompleted(taskId, task.worker, task.amount, block.timestamp);
@@ -200,11 +200,11 @@ contract HumanGridEscrow {
             revert Unauthorized();
         }
 
-        // Mark as cancelled
+        // Mark as cancelled (state change before external call)
         task.cancelled = true;
 
-        // Refund USDC to requester
-        bool success = usdc.transfer(task.requester, task.amount);
+        // Refund native USDC to requester
+        (bool success, ) = task.requester.call{value: task.amount}("");
         if (!success) revert TransferFailed();
 
         emit TaskCancelled(
@@ -277,6 +277,8 @@ contract HumanGridEscrow {
      */
     function transferOwnership(address newOwner) external onlyOwner {
         if (newOwner == address(0)) revert InvalidAddress();
+        address oldOwner = owner;
         owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
     }
 }

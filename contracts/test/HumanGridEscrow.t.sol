@@ -3,69 +3,29 @@ pragma solidity 0.8.23;
 
 import "forge-std/Test.sol";
 import "../src/HumanGridEscrow.sol";
-import "../src/interfaces/IERC20.sol";
 
 /**
- * @title MockUSDC
- * @notice Mock USDC token for testing
+ * @title HumanGridEscrowTest
+ * @notice Tests for Arc Testnet native USDC escrow
  */
-contract MockUSDC is IERC20 {
-    mapping(address => uint256) public balances;
-    mapping(address => mapping(address => uint256)) public allowances;
-
-    function mint(address to, uint256 amount) external {
-        balances[to] += amount;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balances[msg.sender] -= amount;
-        balances[to] += amount;
-        return true;
-    }
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool) {
-        allowances[from][msg.sender] -= amount;
-        balances[from] -= amount;
-        balances[to] += amount;
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowances[msg.sender][spender] = amount;
-        return true;
-    }
-
-    function balanceOf(address account) external view returns (uint256) {
-        return balances[account];
-    }
-}
-
 contract HumanGridEscrowTest is Test {
     HumanGridEscrow public escrow;
-    MockUSDC public usdc;
 
     address public owner = address(1);
     address public verifier = address(2);
     address public requester = address(3);
     address public worker = address(4);
 
-    uint256 constant TASK_AMOUNT = 10e6; // 10 USDC (6 decimals)
+    uint256 constant TASK_AMOUNT = 10 ether; // 10 USDC (18 decimals on Arc)
     bytes32 constant TASK_ID = keccak256("task1");
 
     function setUp() public {
-        // Deploy mock USDC
-        usdc = new MockUSDC();
-
-        // Deploy escrow
+        // Deploy escrow (Arc uses native USDC)
         vm.prank(owner);
-        escrow = new HumanGridEscrow(address(usdc), verifier);
+        escrow = new HumanGridEscrow(verifier);
 
-        // Fund requester
-        usdc.mint(requester, 1000e6);
+        // Fund requester with native USDC
+        vm.deal(requester, 1000 ether);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -73,13 +33,9 @@ contract HumanGridEscrowTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_CreateTask() public {
-        // Approve USDC
+        // Create task with native USDC
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-
-        // Create task
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
         // Verify task details
         HumanGridEscrow.Task memory task = escrow.getTask(TASK_ID);
@@ -92,56 +48,35 @@ contract HumanGridEscrowTest is Test {
     }
 
     function test_CreateTaskTransfersUSDC() public {
-        uint256 requesterBalanceBefore = usdc.balanceOf(requester);
-        uint256 escrowBalanceBefore = usdc.balanceOf(address(escrow));
+        uint256 requesterBalanceBefore = requester.balance;
+        uint256 escrowBalanceBefore = address(escrow).balance;
 
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
-
-        assertEq(
-            usdc.balanceOf(requester),
-            requesterBalanceBefore - TASK_AMOUNT
-        );
-        assertEq(
-            usdc.balanceOf(address(escrow)),
-            escrowBalanceBefore + TASK_AMOUNT
-        );
-    }
-
-    function testRevert_CreateTaskWithoutApproval() public {
-        vm.prank(requester);
-        vm.expectRevert();
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        assertEq(requester.balance, requesterBalanceBefore - TASK_AMOUNT);
+        assertEq(address(escrow).balance, escrowBalanceBefore + TASK_AMOUNT);
     }
 
     function testRevert_CreateTaskZeroAmount() public {
         vm.prank(requester);
         vm.expectRevert(HumanGridEscrow.InvalidAmount.selector);
-        escrow.createTask(TASK_ID, worker, 0);
+        escrow.createTask{value: 0}(TASK_ID, worker);
     }
 
     function testRevert_CreateTaskZeroWorker() public {
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-
-        vm.prank(requester);
         vm.expectRevert(HumanGridEscrow.InvalidAddress.selector);
-        escrow.createTask(TASK_ID, address(0), TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, address(0));
     }
 
     function testRevert_CreateDuplicateTask() public {
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT * 2);
-
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
         vm.prank(requester);
         vm.expectRevert(HumanGridEscrow.TaskAlreadyExists.selector);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -151,11 +86,9 @@ contract HumanGridEscrowTest is Test {
     function test_CompleteTask() public {
         // Create task
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
-        uint256 workerBalanceBefore = usdc.balanceOf(worker);
+        uint256 workerBalanceBefore = worker.balance;
 
         // Complete task
         bytes32 proof = keccak256("verification_proof");
@@ -168,14 +101,12 @@ contract HumanGridEscrowTest is Test {
         assertFalse(escrow.isTaskActive(TASK_ID));
 
         // Verify payment transferred
-        assertEq(usdc.balanceOf(worker), workerBalanceBefore + TASK_AMOUNT);
+        assertEq(worker.balance, workerBalanceBefore + TASK_AMOUNT);
     }
 
     function testRevert_CompleteTaskUnauthorized() public {
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
         bytes32 proof = keccak256("verification_proof");
         vm.prank(requester);
@@ -192,9 +123,7 @@ contract HumanGridEscrowTest is Test {
 
     function testRevert_CompleteTaskTwice() public {
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
         bytes32 proof = keccak256("verification_proof");
         vm.prank(verifier);

@@ -42,7 +42,7 @@ export async function createCircleWallet(
     },
     body: JSON.stringify({
       user_id: userId,
-      blockchain: "BASE-SEPOLIA",
+      blockchain: "ARC-TESTNET",
     }),
   });
 

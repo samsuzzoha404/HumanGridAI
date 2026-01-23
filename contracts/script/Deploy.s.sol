@@ -13,27 +13,25 @@ import "../src/ReputationSBT.sol";
 contract DeployScript is Script {
     function run() external {
         // Load environment variables
-        address usdc = vm.envAddress("USDC_ADDRESS");
         address verifier = vm.envAddress("VERIFIER_ADDRESS");
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
-        require(usdc != address(0), "USDC_ADDRESS not set");
         require(verifier != address(0), "VERIFIER_ADDRESS not set");
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy contracts
-        HumanGridEscrow escrow = new HumanGridEscrow(usdc, verifier);
+        // Deploy contracts (Arc uses native USDC)
+        HumanGridEscrow escrow = new HumanGridEscrow(verifier);
         ReputationSBT reputation = new ReputationSBT(verifier);
 
         vm.stopBroadcast();
 
         // Log deployed addresses
-        console.log("=== HumanGridAI Deployment ===");
+        console.log("=== HumanGridAI Arc Testnet Deployment ===");
         console.log("Network:", block.chainid);
         console.log("Deployer:", vm.addr(deployerPrivateKey));
         console.log("");
-        console.log("USDC:", usdc);
+        console.log("Native Currency: USDC (18 decimals)");
         console.log("Verifier:", verifier);
         console.log("");
         console.log("HumanGridEscrow:", address(escrow));

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRef } from "react";
+import { useCounterAnimation } from "@/hooks/use-counter-animation";
 
 const mockTransactions = [
   { id: "0x8A92...F3D1", amount: 0.05, task: "Captcha Solve", time: "2s ago" },
@@ -97,11 +98,84 @@ const features = [
 ];
 
 const stats = [
-  { label: "Total Volume", value: "$2.4M", suffix: "+", icon: Wallet },
-  { label: "Tasks Completed", value: "847K", suffix: "+", icon: Layers },
-  { label: "Active Workers", value: "12.5K", suffix: "", icon: Users },
-  { label: "AI Integrations", value: "340", suffix: "+", icon: Cpu },
+  {
+    label: "Total Volume",
+    value: 2.4,
+    suffix: "M+",
+    prefix: "$",
+    decimals: 1,
+    icon: Wallet,
+  },
+  {
+    label: "Tasks Completed",
+    value: 847,
+    suffix: "K+",
+    prefix: "",
+    decimals: 0,
+    icon: Layers,
+  },
+  {
+    label: "Active Workers",
+    value: 12.5,
+    suffix: "K",
+    prefix: "",
+    decimals: 1,
+    icon: Users,
+  },
+  {
+    label: "AI Integrations",
+    value: 340,
+    suffix: "+",
+    prefix: "",
+    decimals: 0,
+    icon: Cpu,
+  },
 ];
+
+// Animated Stat Card Component
+function AnimatedStatCard({
+  stat,
+  index,
+}: {
+  stat: (typeof stats)[0];
+  index: number;
+}) {
+  const { ref, value } = useCounterAnimation({
+    end: stat.value,
+    duration: 2.5,
+    decimals: stat.decimals,
+    prefix: stat.prefix,
+    suffix: stat.suffix,
+  });
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: index * 0.1 }}
+      whileHover={{ y: -6, scale: 1.02 }}
+      className="glass-card p-5 sm:p-6 md:p-7 lg:p-9 text-center group cursor-default transition-all duration-300 hover:shadow-2xl"
+    >
+      <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 mx-auto mb-3 sm:mb-4 md:mb-5 rounded-lg sm:rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-primary/10">
+        <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-primary" />
+      </div>
+      <motion.div
+        className="font-mono-data text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-1 sm:mb-2"
+        initial={{ scale: 0.5 }}
+        whileInView={{ scale: 1 }}
+        viewport={{ once: true }}
+        transition={{ delay: index * 0.1 + 0.2, type: "spring" }}
+      >
+        <span className="text-gradient-primary">{value}</span>
+      </motion.div>
+      <div className="text-xs sm:text-sm text-muted-foreground">
+        {stat.label}
+      </div>
+    </motion.div>
+  );
+}
 
 const floatingShapes = [
   { icon: Hexagon, delay: 0, duration: 20, x: "10%", y: "20%" },
@@ -291,7 +365,7 @@ export default function LandingPage() {
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5">
                 <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-success animate-pulse shadow-lg shadow-success/50" />
                 <span className="text-[10px] sm:text-xs font-bold text-success uppercase tracking-wider">
-                  Live on Mainnet
+                  LIVE ON TESTNET
                 </span>
               </div>
               <div className="hidden xs:flex items-center gap-2 sm:gap-2.5">
@@ -492,32 +566,7 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-7">
             {stats.map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ y: -6, scale: 1.02 }}
-                className="glass-card p-5 sm:p-6 md:p-7 lg:p-9 text-center group cursor-default transition-all duration-300 hover:shadow-2xl"
-              >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 mx-auto mb-3 sm:mb-4 md:mb-5 rounded-lg sm:rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-primary/10">
-                  <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-primary" />
-                </div>
-                <motion.div
-                  className="font-mono-data text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-1 sm:mb-2"
-                  initial={{ scale: 0.5 }}
-                  whileInView={{ scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 + 0.2, type: "spring" }}
-                >
-                  <span className="text-gradient-primary">{stat.value}</span>
-                  <span className="text-primary">{stat.suffix}</span>
-                </motion.div>
-                <div className="text-xs sm:text-sm text-muted-foreground">
-                  {stat.label}
-                </div>
-              </motion.div>
+              <AnimatedStatCard key={stat.label} stat={stat} index={index} />
             ))}
           </div>
         </div>

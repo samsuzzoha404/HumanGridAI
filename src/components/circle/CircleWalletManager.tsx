@@ -19,8 +19,28 @@ import {
 import { CircleBalance } from "./CircleBalance";
 import { CircleTransactionHistory } from "./CircleTransactionHistory";
 import { ExternalBalance } from "./ExternalBalance";
-import { createWalletClient, custom } from "viem";
-import { baseSepolia } from "viem/chains";
+import { createWalletClient, custom, defineChain } from "viem";
+
+// Arc Testnet Chain Configuration
+const arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "USDC",
+    symbol: "USDC",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://rpc.testnet.arc.network"],
+      webSocket: ["wss://rpc.testnet.arc.network"],
+    },
+  },
+  blockExplorers: {
+    default: { name: "ArcScan", url: "https://testnet.arcscan.app" },
+  },
+  testnet: true,
+});
 
 interface CircleWalletManagerProps {
   userId: string;
@@ -77,7 +97,7 @@ export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
       }
 
       const client = createWalletClient({
-        chain: baseSepolia,
+        chain: arcTestnet,
         transport: custom(window.ethereum),
       });
 
@@ -114,9 +134,9 @@ export function CircleWalletManager({ userId }: CircleWalletManagerProps) {
             <div className="flex flex-col space-y-1.5">
               <CardTitle className="flex items-center gap-2">
                 <Globe className="h-5 w-5 text-blue-500" />
-                External Wallet
+                Arc Wallet
               </CardTitle>
-              <CardDescription>Base Sepolia • Active</CardDescription>
+              <CardDescription>Arc Testnet • Active</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={disconnectExternal}>
               Disconnect

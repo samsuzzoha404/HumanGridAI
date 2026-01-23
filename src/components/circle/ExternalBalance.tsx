@@ -25,17 +25,27 @@ export function ExternalBalance({ address, className }: ExternalBalanceProps) {
 
   const loadBalance = async () => {
     try {
-      // Cast address to match the type expected by getUsdcBalance if necessary, 
+      console.log("🔍 [ExternalBalance] Loading balance for address:", address);
+      // Cast address to match the type expected by getUsdcBalance if necessary,
       // but usually 0x string is widely accepted. Function signature says `0x${string}`.
       if (!address.startsWith("0x")) {
-         throw new Error("Invalid address format");
+        throw new Error("Invalid address format");
       }
+      console.log("📡 [ExternalBalance] Calling getUsdcBalance...");
       const rawBalance = await getUsdcBalance(address as `0x${string}`);
+      console.log(
+        "💰 [ExternalBalance] Raw balance (bigint):",
+        rawBalance.toString(),
+      );
       const formatted = formatUsdc(rawBalance);
+      console.log("💵 [ExternalBalance] Formatted balance:", formatted);
       setBalance(formatted);
       setError(null);
     } catch (err) {
-      console.error("Failed to load external balance:", err);
+      console.error(
+        "❌ [ExternalBalance] Failed to load external balance:",
+        err,
+      );
       setError("Error");
     } finally {
       setLoading(false);
@@ -53,7 +63,10 @@ export function ExternalBalance({ address, className }: ExternalBalanceProps) {
 
   if (error) {
     return (
-      <Badge variant="outline" className={`text-destructive border-destructive ${className}`}>
+      <Badge
+        variant="outline"
+        className={`text-destructive border-destructive ${className}`}
+      >
         {error}
       </Badge>
     );
