@@ -139,21 +139,17 @@ contract HumanGridEscrowTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_CancelTaskByVerifier() public {
+        // Create task with native USDC
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
-        uint256 requesterBalanceBefore = usdc.balanceOf(requester);
+        uint256 requesterBalanceBefore = requester.balance;
 
         vm.prank(verifier);
         escrow.cancelTask(TASK_ID);
 
         // Verify refund
-        assertEq(
-            usdc.balanceOf(requester),
-            requesterBalanceBefore + TASK_AMOUNT
-        );
+        assertEq(requester.balance, requesterBalanceBefore + TASK_AMOUNT);
 
         // Verify task cancelled
         HumanGridEscrow.Task memory task = escrow.getTask(TASK_ID);
@@ -162,32 +158,27 @@ contract HumanGridEscrowTest is Test {
     }
 
     function test_CancelExpiredTaskByRequester() public {
+        // Create task with native USDC
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
         // Warp time forward past expiry
         vm.warp(block.timestamp + 25 hours);
         assertTrue(escrow.isTaskExpired(TASK_ID));
 
-        uint256 requesterBalanceBefore = usdc.balanceOf(requester);
+        uint256 requesterBalanceBefore = requester.balance;
 
         vm.prank(requester);
         escrow.cancelTask(TASK_ID);
 
         // Verify refund
-        assertEq(
-            usdc.balanceOf(requester),
-            requesterBalanceBefore + TASK_AMOUNT
-        );
+        assertEq(requester.balance, requesterBalanceBefore + TASK_AMOUNT);
     }
 
     function testRevert_CancelTaskByRequesterBeforeExpiry() public {
+        // Create task with native USDC
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
         vm.prank(requester);
         vm.expectRevert(HumanGridEscrow.Unauthorized.selector);
@@ -195,10 +186,9 @@ contract HumanGridEscrowTest is Test {
     }
 
     function testRevert_CancelCompletedTask() public {
+        // Create task with native USDC
         vm.prank(requester);
-        usdc.approve(address(escrow), TASK_AMOUNT);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, TASK_AMOUNT);
+        escrow.createTask{value: TASK_AMOUNT}(TASK_ID, worker);
 
         bytes32 proof = keccak256("verification_proof");
         vm.prank(verifier);
@@ -244,19 +234,19 @@ contract HumanGridEscrowTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testFuzz_CreateAndCompleteTask(uint256 amount) public {
-        amount = bound(amount, 1e6, 1000000e6); // 1 to 1M USDC
+        amount = bound(amount, 1 ether, 1000000 ether); // 1 to 1M USDC (18 decimals)
 
-        usdc.mint(requester, amount);
+        // Fund requester with native USDC
+        vm.deal(requester, amount);
 
+        // Create task with native USDC
         vm.prank(requester);
-        usdc.approve(address(escrow), amount);
-        vm.prank(requester);
-        escrow.createTask(TASK_ID, worker, amount);
+        escrow.createTask{value: amount}(TASK_ID, worker);
 
         bytes32 proof = keccak256("proof");
         vm.prank(verifier);
         escrow.completeTask(TASK_ID, proof);
 
-        assertEq(usdc.balanceOf(worker), amount);
+        assertEq(worker.balance, amount);
     }
 }
