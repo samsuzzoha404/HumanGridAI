@@ -8,6 +8,7 @@ use tower_http::cors::CorsLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
+mod auth;
 mod blockchain;
 mod circle;
 mod config;
@@ -68,12 +69,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let blockchain = blockchain::BlockchainClient::new(&config).await?;
     tracing::info!("✅ Connected to blockchain");
 
+    // Initialize database connection
+    let database_url = std::env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set");
+    let db = sqlx::PgPool::connect(&database_url).await?;
+    tracing::info!("✅ Connected to database");
+
     // Initialize Circle client
     let circle_client = circle::CircleClient::new(std::sync::Arc::new(config.clone()))?;
     tracing::info!("✅ Connected to Circle API");
 
     // Build application state
-    let app_state = Arc::new(api::AppState::new(config.clone(), blockchain, circle_client));
+    let app_state = Arc::new(api::AppState::new(config.clone(), blockchain, circle_client, db));
 
     // Configure CORS (Phase 2: Hardened - no more wildcard origins)
     tracing::info!("🔒 Configuring CORS with origin whitelist");
@@ -91,6 +98,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Health checks - general rate limit
         .route("/", get(api::health::health_check))
         .route("/health", get(api::health::health_check))
+        
+        // Worker wallet management (REQUIRES AUTH)
+        .route("/api/worker/wallet", post(api::worker_wallet::register_wallet))
+        .route("/api/worker/wallet/info", get(api::worker_wallet::get_wallet_info))
+        
+        // Payment submission (REQUIRES AUTH)
+        .route("/api/payments/submit", post(api::payments::submit_payment))
+        .route("/api/payments/:transaction_id/status", get(api::payments::get_payment_status))
+        
+        // Circle webhooks (NO AUTH - validated by signature)
+        .route("/api/webhooks/circle", post(api::webhooks::handle_circle_webhook))
         
         // General API endpoints - general rate limit (100/min)
         .route("/api/verify-task", post(api::verify::verify_task))

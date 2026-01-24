@@ -4,6 +4,7 @@ use crate::config::Config;
 use crate::error::AppError;
 
 pub mod escrow;
+pub mod event_listener;
 
 #[derive(Clone)]
 pub struct BlockchainClient {

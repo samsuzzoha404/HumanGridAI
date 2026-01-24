@@ -32,6 +32,7 @@ const arcTestnet = defineChain({
   testnet: true,
 });
 import { createCircleWallet } from "./circleService";
+import { supabase } from "./supabaseClient";
 // EIP-6963 Types
 interface EIP6963ProviderInfo {
   uuid: string;
@@ -124,8 +125,8 @@ export function onProviderDiscovered(
 }
 
 // Clients
-let walletClient: WalletClient | null = null;
-let publicClient: PublicClient | null = null;
+let walletClient: any = null;
+let publicClient: any = null;
 
 function getClients(specificProvider?: any) {
   if (typeof window === "undefined") return null;

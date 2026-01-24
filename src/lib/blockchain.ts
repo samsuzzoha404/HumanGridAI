@@ -106,7 +106,17 @@ export async function createTask(
 
   // No approval needed - native USDC sent as msg.value
 
-  // Create task with native USDC\n  const taskIdBytes = taskId as `0x${string}`;\n  const hash = await walletClient.writeContract({\n    address: ESCROW_ADDRESS,\n    abi: escrowAbi,\n    functionName: \"createTask\",\n    args: [taskIdBytes, worker],\n    value: amount,  // Send native USDC as value\n    account,\n  });
+  // Create task with native USDC
+  const taskIdBytes = taskId as `0x${string}`;
+  const hash = await walletClient.writeContract({
+    address: ESCROW_ADDRESS,
+    abi: escrowAbi,
+    functionName: "createTask",
+    args: [taskIdBytes, worker],
+    value: amount, // Send native USDC as value
+    account,
+    chain: arcTestnet,
+  });
 
   return hash;
 }
@@ -123,7 +133,7 @@ export async function getTask(taskId: string) {
     abi: escrowAbi,
     functionName: "getTask",
     args: [taskIdBytes],
-  });
+  } as any) as any;
 
   return {
     requester: result[0],
@@ -147,7 +157,7 @@ export async function isTaskActive(taskId: string): Promise<boolean> {
     abi: escrowAbi,
     functionName: "isTaskActive",
     args: [taskIdBytes],
-  });
+  } as any) as Promise<boolean>;
 }
 
 /**
@@ -163,7 +173,7 @@ export async function getReputationTier(
     abi: reputationAbi,
     functionName: "getTier",
     args: [worker],
-  });
+  } as any) as Promise<number>;
 }
 
 /**
@@ -177,7 +187,7 @@ export async function getReputationTierName(tier: number): Promise<string> {
     abi: reputationAbi,
     functionName: "getTierName",
     args: [tier],
-  });
+  } as any) as Promise<string>;
 }
 
 /**
@@ -191,7 +201,7 @@ export async function hasReputation(worker: `0x${string}`): Promise<boolean> {
     abi: reputationAbi,
     functionName: "hasReputation",
     args: [worker],
-  });
+  } as any) as Promise<boolean>;
 }
 
 /**

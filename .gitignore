@@ -69,3 +69,4 @@ Thumbs.db
 # Lockfiles (optional, keep bun.lockb if needed)
 # package-lock.json
 # yarn.lock
+.vercel

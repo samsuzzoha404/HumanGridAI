@@ -1,0 +1,39 @@
+# Rust service and build artifacts
+rust-service/
+target/
+
+# Solidity/Foundry artifacts
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+contracts/lib/
+contracts/test/
+
+# Test and setup scripts
+scripts/testnet-stress-test.js
+scripts/deploy-testnet.sh
+test-circle-api.ps1
+contracts/setup.ps1
+contracts/setup.sh
+rust-service/setup.ps1
+rust-service/setup.sh
+
+# Documentation
+contracts/QUICKSTART.md
+contracts/README.md
+contracts/report.md
+rust-service/README.md
+TEST_COVERAGE.md
+
+# Docker and Cargo files (not needed for Next.js deployment)
+rust-service/Dockerfile
+rust-service/docker-compose.yml
+rust-service/Cargo.toml
+rust-service/Cargo_test_dependencies.toml
+
+# SQL files (should be handled by Supabase, not Vercel)
+*.sql
+
+# Test configuration
+tsconfig.test.json
+aderyn.toml

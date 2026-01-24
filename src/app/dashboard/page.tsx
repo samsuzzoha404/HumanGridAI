@@ -184,7 +184,7 @@ export default function DashboardPage() {
     const demoTask = mockTasks[demoTaskIndexRef.current % mockTasks.length];
     const uniqueTask = {
       ...demoTask,
-      id: `demo-${Date.now()}-${demoTaskIndexRef.current}`,
+      id: Date.now() + demoTaskIndexRef.current,
     };
     demoTaskIndexRef.current++;
     return uniqueTask;
